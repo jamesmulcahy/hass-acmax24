@@ -1,0 +1,13 @@
+{
+    "domain": "acmax24",
+    "name": "AVPro Edge AC-MAX-24 Audio Matrix",
+    "version": "0.1.0",
+    "documentation": "https://github.com/jamesmulcahy/hass-acmax24",
+    "requirements": ["acmax24>=0.1.0", "ratelimit>=2.2.1"],
+    "dependencies": [],
+    "codeowners": [""],
+    "iot_class": "local_push",
+    "supported_brands": {
+        "avpro": "AVPro"
+    }
+}
