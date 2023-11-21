@@ -350,7 +350,7 @@ class ZoneMediaPlayer(MediaPlayerEntity):
     async def async_set_volume_level(self, volume):
         """Set volume level, range 0—1.0"""
         LOG.debug(f"Setting zone {self.zone_info} volume to {volume}")
-        await self._matrix.set_output_volume(self.zone_info, int(volume * 100))
+        await self._matrix.set_output_volume(self._zone_id, int(volume * 100))
 
     async def async_volume_up(self):
         """Volume up the media player."""
