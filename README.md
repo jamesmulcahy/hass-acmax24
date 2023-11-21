@@ -29,6 +29,7 @@ This is my first home assistant integration. This should not be considered "prod
 only been manually tested in a single environment (my home). There are likely many bugs, but the known issues at this time are:
 
 - The websocket API will frequently return 'CMD ERROR' in response to requests -- likely because we're not honoring the protocol correctly. As a workaround, all commands are sent twice, this usually means that one or both of the requests succeed. Unfortunately, for non-idempotetnt updates (such as volume step changes), this can mean they are applied twice.
+- This appears in the logs: ```2023-11-19 22:42:35.061 ERROR (MainThread) [homeassistant.components.homekit.util] media_player.acmax24_avpro_edge_ac_max_24 does not support any media_player features```
 
 ## Limitations
 
