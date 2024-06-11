@@ -108,7 +108,10 @@ async def async_setup_platform(
 
     # Add the master Media Player for the main control unit, with references to all the zones
     matrix_entity = ACMax24Entity(hass, namespace, matrix_name, matrix, sources, entities)
-    entities.append(matrix_entity)
+    # As of June 2024, Home Assistant doesn't like it when we add this, because it doesn't
+    # support any of the media_player behaviors. In practice, I don't use this device anyway
+    # so I'm just disabling it for now
+    #entities.append(matrix_entity)
 
     async_add_entities(entities, True)
 
@@ -171,7 +174,7 @@ class ACMax24Entity(MediaPlayerEntity):
         LOG.debug("async_update completed label refresh")
 
     async def schedule_ha_update(self):
-        self.async_schedule_update_ha_state(force_refresh=True)
+        self.schedule_update_ha_state(force_refresh=True)
 
     @property
     def unique_id(self):
