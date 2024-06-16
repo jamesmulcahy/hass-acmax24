@@ -63,8 +63,11 @@ async def async_setup_platform(
     entities = []
     matrix = None
     matrix_entity = None
+    
+    LOG.info(f"Configuring acmax24 plugin for {namespace}, hass={hass}")
 
     async def notify_callback():
+        LOG.info(f"Received notify callback.  matrix_entity={matrix_entity}")
         if matrix_entity:
             await matrix_entity.schedule_ha_update()
 
@@ -174,6 +177,7 @@ class ACMax24Entity(MediaPlayerEntity):
         LOG.debug("async_update completed label refresh")
 
     async def schedule_ha_update(self):
+        LOG.info(f"In schedule_ha_update(). self.hass={self.hass}")
         self.schedule_update_ha_state(force_refresh=True)
 
     @property
