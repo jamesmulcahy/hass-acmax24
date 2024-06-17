@@ -111,10 +111,7 @@ async def async_setup_platform(
 
     # Add the master Media Player for the main control unit, with references to all the zones
     matrix_entity = ACMax24Entity(hass, namespace, matrix_name, matrix, sources, entities)
-    # As of June 2024, Home Assistant doesn't like it when we add this, because it doesn't
-    # support any of the media_player behaviors. In practice, I don't use this device anyway
-    # so I'm just disabling it for now
-    #entities.append(matrix_entity)
+    entities.append(matrix_entity)
 
     async_add_entities(entities, True)
 
