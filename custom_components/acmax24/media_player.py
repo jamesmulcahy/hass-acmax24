@@ -17,17 +17,15 @@ from homeassistant.const import (
 )
 from homeassistant.exceptions import PlatformNotReady
 from homeassistant.helpers import config_validation as cv
-from homeassistant.helpers import entity_platform
+from homeassistant.helpers import entity_platform, service
 from homeassistant.core import HomeAssistant
 from acmax24 import ACMax24
 from ratelimit import limits
 
 from .const import (
     DOMAIN,
-    # SERVICE_JOIN,
-    # SERVICE_RESTORE,
-    # SERVICE_SNAPSHOT,
-    # SERVICE_UNJOIN,
+    SERVICE_RESTORE,
+    SERVICE_SNAPSHOT,
 )
 
 LOG: logging.Logger = logging.getLogger(__package__)
@@ -116,27 +114,39 @@ async def async_setup_platform(
     async_add_entities(entities, True)
 
     # setup the service calls
-    # platform = entity_platform.current_platform.get()
+    platform = entity_platform.current_platform.get()
 
-    # async def async_service_call_dispatcher(service_call):
-    #     entities = await platform.async_extract_from_service(service_call)
-    #     if not entities:
-    #         return
+    @service.verify_domain_control(hass, DOMAIN)
+    async def async_service_call_dispatcher(service_call):
+        entities = await platform.async_extract_from_service(service_call)
+        if not entities:
+            return
+        
+        for entity in entities:
+            # TODO: Check that I only receive this for the main entity; ignore the rest?
+            LOG.info(
+                f"Received service call of type {service_call.service} for {entity}"
+            )
+            
+            if not isinstance(entity, ACMax24Entity):
+                LOG.error(f"ignoring service call for {entity}")
+                continue
 
-    #     for entity in entities:
-    #         if service_call.service == SERVICE_SNAPSHOT:
-    #             await entity.async_snapshot()
-    #         elif service_call.service == SERVICE_RESTORE:
-    #             await entity.async_restore()
+            # If we get here, it should definitely be an ACMax24 entity, so we cna call
+            if service_call.service == SERVICE_SNAPSHOT:
+                entity.snapshot()
+            elif service_call.service == SERVICE_RESTORE:
+                entity.restore()
 
-    # # register the save/restore snapshot services
-    # for service_call in (SERVICE_SNAPSHOT, SERVICE_RESTORE):
-    #     hass.services.async_register(
-    #         DOMAIN,
-    #         service_call,
-    #         async_service_call_dispatcher,
-    #         schema=SERVICE_CALL_SCHEMA,
-    #     )
+        
+    # register the save/restore snapshot services
+    for service_call in (SERVICE_SNAPSHOT, SERVICE_RESTORE):
+        hass.services.async_register(
+            DOMAIN,
+            service_call,
+            async_service_call_dispatcher,
+            schema=cv.make_entity_service_schema({}),
+        )
 
 
 class ACMax24Entity(MediaPlayerEntity):
@@ -217,6 +227,26 @@ class ACMax24Entity(MediaPlayerEntity):
     @property
     def icon(self):
         return "mdi:speaker"
+    
+    async def snapshot(self):
+        """Save matrix current state."""
+        LOG.info(f"Saving state snapshot for {self.name}")
+        self._status_snapshot = self._matrix.save_state()
+        LOG.info(f"Saved state snapshot for {self.name}")
+
+    async def restore(self):
+        """Restore matrix saved state."""
+        if self._status_snapshot:
+            ## FIXME: This is an async call; how do we make that work?
+            LOG.info(f"Restoring previous state for {self.name}")
+            self.matrix.restore_state(self._status_snapshot)
+            self.async_schedule_update_ha_state(force_refresh=True)
+            LOG.info(f"Restored previous state for {self.name}")
+        else:
+            LOG.warning(
+                f"Restore service called for {self.name}, but no snapshot previously saved."
+            )
+
 
 
 class ZoneMediaPlayer(MediaPlayerEntity):
@@ -311,23 +341,6 @@ class ZoneMediaPlayer(MediaPlayerEntity):
     def source_list(self):
         """List of available input sources."""
         return self._source_names
-
-    # async def async_snapshot(self):
-    #     """Save zone's current state."""
-    #     # TODO: Change API call
-    #     self._status_snapshot = await self._amp.zone_status(self._zone_id)
-    #     LOG.info(f"Saved state snapshot for {self.zone_info}")
-
-    # async def async_restore(self):
-    #     """Restore saved state."""
-    #     if self._status_snapshot:
-    #         await self._amp.restore_zone(self._status_snapshot)
-    #         self.async_schedule_update_ha_state(force_refresh=True)
-    #         LOG.info(f"Restored previous state for {self.zone_info}")
-    #     else:
-    #         LOG.warning(
-    #             f"Restore service called for {self.zone_info}, but no snapshot previously saved."
-    #         )
 
     async def async_select_source(self, source):
         """Set input source."""
