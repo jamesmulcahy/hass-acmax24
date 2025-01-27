@@ -134,9 +134,9 @@ async def async_setup_platform(
 
             # If we get here, it should definitely be an ACMax24 entity, so we cna call
             if service_call.service == SERVICE_SNAPSHOT:
-                entity.snapshot()
+                await entity.snapshot()
             elif service_call.service == SERVICE_RESTORE:
-                entity.restore()
+                await entity.restore()
 
         
     # register the save/restore snapshot services
