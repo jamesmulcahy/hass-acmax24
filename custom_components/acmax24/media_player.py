@@ -239,7 +239,7 @@ class ACMax24Entity(MediaPlayerEntity):
         if self._status_snapshot:
             ## FIXME: This is an async call; how do we make that work?
             LOG.info(f"Restoring previous state for {self.name}")
-            self.matrix.restore_state(self._status_snapshot)
+            self._matrix.restore_state(self._status_snapshot)
             self.async_schedule_update_ha_state(force_refresh=True)
             LOG.info(f"Restored previous state for {self.name}")
         else:
