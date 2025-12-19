@@ -116,7 +116,7 @@ async def async_setup_platform(
     # setup the service calls
     platform = entity_platform.current_platform.get()
 
-    @service.verify_domain_control(hass, DOMAIN)
+    @service.verify_domain_control(DOMAIN)
     async def async_service_call_dispatcher(service_call):
         entities = await platform.async_extract_from_service(service_call)
         if not entities:
