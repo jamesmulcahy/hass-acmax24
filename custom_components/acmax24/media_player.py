@@ -61,6 +61,7 @@ async def async_setup_platform(
     hostname = config.get(CONF_HOST)
     namespace = config.get(CONF_ENTITY_NAMESPACE)
     entities = []
+    zone_players = []
     matrix = None
     matrix_entity = None
     signal_sensors = []
@@ -70,7 +71,9 @@ async def async_setup_platform(
     async def notify_callback():
         LOG.debug(f"Received notify callback.  matrix_entity={matrix_entity}")
         if matrix_entity:
-            await matrix_entity.schedule_ha_update()
+            matrix_entity.schedule_update_ha_state()
+        for zp in zone_players:
+            zp.schedule_update_ha_state()
         for sensor in signal_sensors:
             sensor.notify()
 
@@ -105,12 +108,9 @@ async def async_setup_platform(
  
     for output in matrix.get_enabled_outputs():
         LOG.debug("Adding ZoneMediaPlayer for %s", output)
-        entities.append(
-            # TODO: ZMP should set its own name
-            ZoneMediaPlayer(
-                namespace, matrix_name, matrix, sources, output
-            )
-        )
+        zp = ZoneMediaPlayer(namespace, matrix_name, matrix, sources, output)
+        entities.append(zp)
+        zone_players.append(zp)
 
     # Add the master Media Player for the main control unit, with references to all the zones
     matrix_entity = ACMax24Entity(hass, namespace, matrix_name, matrix, sources, entities)
@@ -193,10 +193,6 @@ class ACMax24Entity(MediaPlayerEntity):
         except Exception as e:
             LOG.error("async_update encountered exception %s", e)
         LOG.debug("async_update completed label refresh")
-
-    async def schedule_ha_update(self):
-        LOG.info(f"In schedule_ha_update(). self.hass={self.hass}")
-        self.schedule_update_ha_state(force_refresh=True)
 
     @property
     def unique_id(self):
