@@ -22,6 +22,8 @@ from homeassistant.core import HomeAssistant
 from acmax24 import ACMax24
 from ratelimit import limits
 
+from .binary_sensor import InputSignalSensor
+
 from .const import (
     DOMAIN,
     SERVICE_RESTORE,
@@ -61,13 +63,16 @@ async def async_setup_platform(
     entities = []
     matrix = None
     matrix_entity = None
-    
+    signal_sensors = []
+
     LOG.info(f"Configuring acmax24 plugin for {namespace}, hass={hass}")
 
     async def notify_callback():
-        LOG.info(f"Received notify callback.  matrix_entity={matrix_entity}")
+        LOG.debug(f"Received notify callback.  matrix_entity={matrix_entity}")
         if matrix_entity:
             await matrix_entity.schedule_ha_update()
+        for sensor in signal_sensors:
+            sensor.notify()
 
     try:
         LOG.info("Setting up %s platform", namespace)
@@ -110,6 +115,12 @@ async def async_setup_platform(
     # Add the master Media Player for the main control unit, with references to all the zones
     matrix_entity = ACMax24Entity(hass, namespace, matrix_name, matrix, sources, entities)
     entities.append(matrix_entity)
+
+    signal_sensors.extend(
+        InputSignalSensor(namespace, matrix_name, inp)
+        for inp in matrix.get_enabled_inputs()
+    )
+    entities.extend(signal_sensors)
 
     async_add_entities(entities, True)
 
