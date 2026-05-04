@@ -15,10 +15,11 @@ from homeassistant.const import (
     STATE_ON,
     STATE_UNKNOWN,
 )
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import PlatformNotReady
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_platform, service
-from homeassistant.core import HomeAssistant
+from homeassistant.helpers.event import async_track_state_change_event
 from acmax24 import ACMax24
 from ratelimit import limits
 
@@ -32,6 +33,8 @@ from .const import (
 
 LOG: logging.Logger = logging.getLogger(__package__)
 
+CONF_SOURCE_ENTITY_MAP = "source_entity_map"
+
 SUPPORTED_AMP_FEATURES = MediaPlayerEntityFeature.SELECT_SOURCE
 
 SUPPORTED_ZONE_FEATURES = (
@@ -41,11 +44,19 @@ SUPPORTED_ZONE_FEATURES = (
     | MediaPlayerEntityFeature.VOLUME_STEP
 )
 
+TRANSPORT_FEATURES = (
+    MediaPlayerEntityFeature.PLAY
+    | MediaPlayerEntityFeature.PAUSE
+    | MediaPlayerEntityFeature.NEXT_TRACK
+    | MediaPlayerEntityFeature.PREVIOUS_TRACK
+)
+
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
         vol.Optional(CONF_NAME, default="AVPro Edge AC-MAX-24"): cv.string,
         vol.Required(CONF_HOST): cv.string,
         vol.Optional(CONF_ENTITY_NAMESPACE, default="acmax24"): cv.string,
+        vol.Optional(CONF_SOURCE_ENTITY_MAP, default={}): {cv.string: cv.entity_id},
     }
 )
 
@@ -60,6 +71,7 @@ async def async_setup_platform(
     """Set up the AVPro Edge Audio Matrix platform."""
     hostname = config.get(CONF_HOST)
     namespace = config.get(CONF_ENTITY_NAMESPACE)
+    source_entity_map = config.get(CONF_SOURCE_ENTITY_MAP, {})
     entities = []
     zone_players = []
     matrix = None
@@ -81,7 +93,7 @@ async def async_setup_platform(
         LOG.info("Setting up %s platform", namespace)
         matrix = ACMax24(hostname, notify_callback)
         LOG.debug("Matrix created, about to start")
-        
+
         await matrix.start()
         LOG.debug("Started")
 
@@ -105,10 +117,12 @@ async def async_setup_platform(
     LOG.info(
         f"Creating zone media players for {namespace} '{matrix_name}'; sources={sources}"
     )
- 
+    if source_entity_map:
+        LOG.info(f"Source entity map configured: {source_entity_map}")
+
     for output in matrix.get_enabled_outputs():
         LOG.debug("Adding ZoneMediaPlayer for %s", output)
-        zp = ZoneMediaPlayer(namespace, matrix_name, matrix, sources, output)
+        zp = ZoneMediaPlayer(namespace, matrix_name, matrix, sources, output, source_entity_map)
         entities.append(zp)
         zone_players.append(zp)
 
@@ -132,13 +146,13 @@ async def async_setup_platform(
         entities = await platform.async_extract_from_service(service_call)
         if not entities:
             return
-        
+
         for entity in entities:
             # TODO: Check that I only receive this for the main entity; ignore the rest?
             LOG.info(
                 f"Received service call of type {service_call.service} for {entity}"
             )
-            
+
             if not isinstance(entity, ACMax24Entity):
                 LOG.error(f"ignoring service call for {entity}")
                 continue
@@ -149,7 +163,7 @@ async def async_setup_platform(
             elif service_call.service == SERVICE_RESTORE:
                 await entity.restore()
 
-        
+
     # register the save/restore snapshot services
     for service_call in (SERVICE_SNAPSHOT, SERVICE_RESTORE):
         hass.services.async_register(
@@ -234,7 +248,7 @@ class ACMax24Entity(MediaPlayerEntity):
     @property
     def icon(self):
         return "mdi:speaker"
-    
+
     async def snapshot(self):
         """Save matrix current state."""
         LOG.info(f"Saving state snapshot for {self.name}")
@@ -259,7 +273,7 @@ class ACMax24Entity(MediaPlayerEntity):
 class ZoneMediaPlayer(MediaPlayerEntity):
     """Representation of a matrix amplifier zone."""
 
-    def __init__(self, namespace, matrix_name, matrix, sources, output):
+    def __init__(self, namespace, matrix_name, matrix, sources, output, source_entity_map=None):
         """Initialize new zone."""
         self._matrix = matrix
         self._matrix_name = matrix_name
@@ -289,6 +303,43 @@ class ZoneMediaPlayer(MediaPlayerEntity):
             self._source_name_to_id.keys(), key=lambda v: self._source_name_to_id[v]
         )
 
+        # source label -> HA entity_id map (e.g. {"James Matrix": "media_player.james_matrix"})
+        self._source_entity_map = source_entity_map or {}
+
+    async def async_added_to_hass(self):
+        """Subscribe to source entity state changes once added to HA."""
+        if not self._source_entity_map:
+            return
+
+        entity_ids = list(self._source_entity_map.values())
+
+        @callback
+        def _handle_source_state_change(event):
+            changed_entity_id = event.data.get("entity_id")
+            if self._current_source_entity_id() == changed_entity_id:
+                self.async_write_ha_state()
+
+        self.async_on_remove(
+            async_track_state_change_event(self.hass, entity_ids, _handle_source_state_change)
+        )
+
+    def _current_source_entity_id(self):
+        """Return the HA entity_id for the zone's current source, or None if unmapped."""
+        current_source = self.source
+        if current_source is None:
+            return None
+        return self._source_entity_map.get(current_source)
+
+    def _source_attr(self, attr):
+        """Return an attribute from the current source entity's state, or None."""
+        entity_id = self._current_source_entity_id()
+        if not entity_id:
+            return None
+        state = self.hass.states.get(entity_id)
+        if not state:
+            return None
+        return state.attributes.get(attr)
+
     @property
     def zone_info(self):
         return f"{self._matrix_name} zone {self._zone_id} ({self._name})"
@@ -308,7 +359,12 @@ class ZoneMediaPlayer(MediaPlayerEntity):
 
     @property
     def state(self):
-        """Return the powered on state of the zone."""
+        """Return zone state from the mapped source entity, falling back to STATE_ON."""
+        entity_id = self._current_source_entity_id()
+        if entity_id:
+            source_state = self.hass.states.get(entity_id)
+            if source_state:
+                return source_state.state
         return STATE_ON
 
     @property
@@ -328,7 +384,42 @@ class ZoneMediaPlayer(MediaPlayerEntity):
     @property
     def supported_features(self):
         """Return flag of media commands that are supported."""
-        return SUPPORTED_ZONE_FEATURES
+        features = SUPPORTED_ZONE_FEATURES
+        if self._current_source_entity_id() is not None:
+            features |= TRANSPORT_FEATURES
+        return features
+
+    @property
+    def media_title(self):
+        return self._source_attr("media_title")
+
+    @property
+    def media_artist(self):
+        return self._source_attr("media_artist")
+
+    @property
+    def media_album_name(self):
+        return self._source_attr("media_album_name")
+
+    @property
+    def media_duration(self):
+        return self._source_attr("media_duration")
+
+    @property
+    def media_position(self):
+        return self._source_attr("media_position")
+
+    @property
+    def extra_state_attributes(self):
+        """Expose source entity id and source volume for dual-volume command routing."""
+        attrs = {}
+        entity_id = self._current_source_entity_id()
+        if entity_id:
+            attrs["active_source_entity_id"] = entity_id
+            source_state = self.hass.states.get(entity_id)
+            if source_state:
+                attrs["source_volume_level"] = source_state.attributes.get("volume_level")
+        return attrs
 
     @property
     def source(self):
@@ -385,6 +476,30 @@ class ZoneMediaPlayer(MediaPlayerEntity):
         """Volume down media player."""
         LOG.debug(f"FIXME: async_volume_down")
         await self._matrix.step_output_volume(self._zone_id, -5)
+
+    async def _call_source_service(self, service_name):
+        """Call a media_player service on the current source entity."""
+        entity_id = self._current_source_entity_id()
+        if not entity_id:
+            LOG.warning(f"No source entity mapped for {self.zone_info}, cannot call {service_name}")
+            return
+        await self.hass.services.async_call(
+            "media_player",
+            service_name,
+            {ATTR_ENTITY_ID: entity_id},
+        )
+
+    async def async_media_play(self):
+        await self._call_source_service("media_play")
+
+    async def async_media_pause(self):
+        await self._call_source_service("media_pause")
+
+    async def async_media_next_track(self):
+        await self._call_source_service("media_next_track")
+
+    async def async_media_previous_track(self):
+        await self._call_source_service("media_previous_track")
 
     @property
     def icon(self):
