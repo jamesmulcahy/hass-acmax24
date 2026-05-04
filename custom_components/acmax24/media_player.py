@@ -20,6 +20,7 @@ from homeassistant.exceptions import PlatformNotReady
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_platform, service
 from homeassistant.helpers.event import async_track_state_change_event
+from homeassistant.util import dt as dt_util
 from acmax24 import ACMax24
 from ratelimit import limits
 
@@ -408,6 +409,25 @@ class ZoneMediaPlayer(MediaPlayerEntity):
     @property
     def media_position(self):
         return self._source_attr("media_position")
+
+    @property
+    def media_position_updated_at(self):
+        val = self._source_attr("media_position_updated_at")
+        if val is None:
+            return None
+        if hasattr(val, "isoformat"):
+            return val
+        return dt_util.parse_datetime(val)
+
+    @property
+    def entity_picture(self):
+        entity_id = self._current_source_entity_id()
+        if not entity_id:
+            return None
+        state = self.hass.states.get(entity_id)
+        if not state:
+            return None
+        return state.attributes.get("entity_picture")
 
     @property
     def extra_state_attributes(self):
