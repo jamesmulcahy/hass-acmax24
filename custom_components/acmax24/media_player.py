@@ -18,13 +18,11 @@ from homeassistant.const import (
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import PlatformNotReady
 from homeassistant.helpers import config_validation as cv
-from homeassistant.helpers import entity_platform, service
+from homeassistant.helpers import discovery, entity_platform, service
 from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.util import dt as dt_util
 from acmax24 import ACMax24
 from ratelimit import limits
-
-from .binary_sensor import InputSignalSensor
 
 from .const import (
     DOMAIN,
@@ -77,7 +75,6 @@ async def async_setup_platform(
     zone_players = []
     matrix = None
     matrix_entity = None
-    signal_sensors = []
 
     LOG.info(f"Configuring acmax24 plugin for {namespace}, hass={hass}")
 
@@ -87,7 +84,7 @@ async def async_setup_platform(
             matrix_entity.schedule_update_ha_state()
         for zp in zone_players:
             zp.schedule_update_ha_state()
-        for sensor in signal_sensors:
+        for sensor in hass.data.get(DOMAIN, {}).get("signal_sensors", []):
             sensor.notify()
 
     try:
@@ -131,13 +128,17 @@ async def async_setup_platform(
     matrix_entity = ACMax24Entity(hass, namespace, matrix_name, matrix, sources, entities)
     entities.append(matrix_entity)
 
-    signal_sensors.extend(
-        InputSignalSensor(namespace, matrix_name, inp)
-        for inp in matrix.get_enabled_inputs()
-    )
-    entities.extend(signal_sensors)
-
     async_add_entities(entities, True)
+
+    hass.async_create_task(
+        discovery.async_load_platform(
+            hass,
+            "binary_sensor",
+            DOMAIN,
+            {"namespace": namespace, "matrix_name": matrix_name, "matrix": matrix},
+            config,
+        )
+    )
 
     # setup the service calls
     platform = entity_platform.current_platform.get()

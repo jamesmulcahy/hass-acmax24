@@ -7,6 +7,21 @@ from acmax24 import Input
 LOG: logging.Logger = logging.getLogger(__package__)
 
 
+async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
+    if discovery_info is None:
+        return
+    from .const import DOMAIN
+    namespace = discovery_info["namespace"]
+    matrix_name = discovery_info["matrix_name"]
+    matrix = discovery_info["matrix"]
+    sensors = [
+        InputSignalSensor(namespace, matrix_name, inp)
+        for inp in matrix.get_enabled_inputs()
+    ]
+    hass.data.setdefault(DOMAIN, {})["signal_sensors"] = sensors
+    async_add_entities(sensors, True)
+
+
 class InputSignalSensor(BinarySensorEntity):
     """Reports whether audio is present on an AC-MAX-24 input channel."""
 
