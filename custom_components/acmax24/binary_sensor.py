@@ -49,4 +49,8 @@ class InputSignalSensor(BinarySensorEntity):
         }
 
     def notify(self):
+        if self.hass is None:
+            # Entity not yet attached to hass, or already torn down (e.g. platform
+            # reload) while the acmax24 background thread is still delivering events.
+            return
         self.schedule_update_ha_state()

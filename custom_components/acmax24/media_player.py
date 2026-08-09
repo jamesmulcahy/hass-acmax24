@@ -80,10 +80,14 @@ async def async_setup_platform(
 
     async def notify_callback():
         LOG.debug(f"Received notify callback.  matrix_entity={matrix_entity}")
-        if matrix_entity:
+        # Entities may not yet be (or no longer be) attached to hass if this fires
+        # from the acmax24 background thread before setup finishes, or after a
+        # platform reload orphans them; skip rather than crash on self.hass is None.
+        if matrix_entity and matrix_entity.hass is not None:
             matrix_entity.schedule_update_ha_state()
         for zp in zone_players:
-            zp.schedule_update_ha_state()
+            if zp.hass is not None:
+                zp.schedule_update_ha_state()
         for sensor in hass.data.get(DOMAIN, {}).get("signal_sensors", []):
             sensor.notify()
 
