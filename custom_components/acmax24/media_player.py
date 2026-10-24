@@ -128,7 +128,7 @@ async def async_setup_platform(
         zone_players.append(zp)
 
     # Add the master Media Player for the main control unit, with references to all the zones
-    matrix_entity = ACMax24Entity(hass, namespace, matrix_name, matrix, sources, entities)
+    matrix_entity = ACMax24Entity(hass, namespace, matrix_name, matrix, sources, zone_players)
     entities.append(matrix_entity)
 
     async_add_entities(entities, True)
@@ -187,6 +187,7 @@ class ACMax24Entity(MediaPlayerEntity):
         self._name = name
         self._matrix = matrix
         self._zone_players = zone_players
+        self._status_snapshot = None
 
         # TODO: Refactor the code that depends on these mappings; the acmax24 library can handle all this directly.
         self._source_id_to_name = sources  # [source_id]   -> source name

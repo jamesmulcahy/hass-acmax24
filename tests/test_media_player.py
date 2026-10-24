@@ -73,12 +73,9 @@ async def test_select_invalid_source_is_ignored(hass, matrix):
     assert matrix.sent == []
 
 
-@pytest.mark.xfail(strict=True, raises=RecursionError,
-                   reason="BUG: ACMax24Entity is passed the same `entities` list it is later appended to, so it "
-                          "is one of its own zones and select_source recurses, flooding the device with commands")
 async def test_matrix_select_source_applies_to_all_zones(hass, matrix):
     await call(hass, "select_source", MATRIX, source="TV")
-    assert sorted(set(matrix.sent)) == ["SET OUT3 AS IN2\r\n", "SET OUT4 AS IN2\r\n"]
+    assert sorted(matrix.sent) == ["SET OUT3 AS IN2\r\n"] * 2 + ["SET OUT4 AS IN2\r\n"] * 2
 
 
 async def test_volume_set(hass, matrix):
@@ -145,8 +142,6 @@ async def test_snapshot_on_zone_is_ignored(hass, matrix):
     assert matrix.sent == []
 
 
-@pytest.mark.xfail(strict=True, raises=AttributeError, reason="BUG: ACMax24Entity._status_snapshot is never initialised, so "
-                                       "restore before snapshot raises AttributeError")
 async def test_restore_without_snapshot_is_noop(hass, matrix):
     await call(hass, "restore", MATRIX, domain=DOMAIN)
     assert matrix.sent == []
