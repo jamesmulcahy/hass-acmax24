@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# The repo root doubles as a local virtualenv
+/bin/
+/include/
+/lib/
+/pyvenv.cfg
+
+# ...and as a local Home Assistant config directory (see start.sh)
+/.HA_VERSION
+/.cloud/
+/.storage/
+/.vscode/
+/automations.yaml
+/blueprints/
+/configuration.yaml
+/deps/
+/docker/
+/home-assistant.log*
+/home-assistant_v2.db*
+/scenes.yaml
+/scripts.yaml
+/secrets.yaml
+/tts/
+
+# OS
+.DS_Store
