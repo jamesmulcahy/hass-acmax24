@@ -1,12 +1,12 @@
 {
-    "config": {
-        "step": {"device": {"title": "AC-MAX-24", "data": {"tty": "Serial port"}}},
-        "error": {
-            "cannot_connect": "[%key:common::config_flow::error::cannot_connect%]",
-            "unknown": "[%key:common::config_flow::error::unknown%]",
-        },
-        "abort": {
-            "already_configured": "[%key:common::config_flow::abort::already_configured_device%]"
-        },
+  "services": {
+    "snapshot": {
+      "name": "Snapshot",
+      "description": "Saves the current source, volume and mute state of every zone so it can be restored later."
+    },
+    "restore": {
+      "name": "Restore",
+      "description": "Restores zone state previously saved with the snapshot service."
     }
+  }
 }
