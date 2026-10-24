@@ -22,7 +22,6 @@ from homeassistant.helpers import discovery, entity_platform, service
 from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.util import dt as dt_util
 from acmax24 import ACMax24
-from ratelimit import limits
 
 from .const import (
     DOMAIN,
