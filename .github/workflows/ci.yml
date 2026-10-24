@@ -19,8 +19,7 @@ jobs:
         with:
           category: integration
           # brands: the integration isn't registered in home-assistant/brands.
-          # topics: the GitHub repo has no topics yet; drop this once some are added.
-          ignore: brands topics
+          ignore: brands
 
   test:
     runs-on: ubuntu-latest
