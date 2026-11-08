@@ -1,8 +1,13 @@
-"""Binary sensors for AC-MAX-24 input signal status."""
+"""Binary sensors for AC-MAX-24 input signal status and connectivity."""
 import logging
+from datetime import timedelta
 
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass, BinarySensorEntity
-from acmax24 import Input
+from homeassistant.const import EntityCategory
+from acmax24 import ACMax24, Input
+
+# Only the connectivity sensor polls; signal sensors are push-updated.
+SCAN_INTERVAL = timedelta(seconds=30)
 
 LOG: logging.Logger = logging.getLogger(__package__)
 
@@ -19,7 +24,24 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         for inp in matrix.get_enabled_inputs()
     ]
     hass.data.setdefault(DOMAIN, {})["signal_sensors"] = sensors
-    async_add_entities(sensors, True)
+    async_add_entities([*sensors, MatrixConnectedSensor(namespace, matrix_name, matrix)], True)
+
+
+class MatrixConnectedSensor(BinarySensorEntity):
+    """Whether the websocket to the matrix is currently connected. Polled, since
+    connect/disconnect don't trigger the notify callback."""
+
+    _attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_should_poll = True
+
+    def __init__(self, namespace: str, matrix_name: str, matrix: ACMax24):
+        self._matrix = matrix
+        self._attr_name = f"{matrix_name} Connected"
+        self._attr_unique_id = f"acmax24_{namespace}_{matrix_name}_connected".lower().replace(" ", "_")
+
+    def update(self) -> None:
+        self._attr_is_on = self._matrix.connected
 
 
 class InputSignalSensor(BinarySensorEntity):
