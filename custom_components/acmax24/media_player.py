@@ -133,15 +133,16 @@ async def async_setup_platform(
 
     async_add_entities(entities, True)
 
-    hass.async_create_task(
-        discovery.async_load_platform(
-            hass,
-            "binary_sensor",
-            DOMAIN,
-            {"namespace": namespace, "matrix_name": matrix_name, "matrix": matrix},
-            config,
+    for platform_domain in ("binary_sensor", "sensor"):
+        hass.async_create_task(
+            discovery.async_load_platform(
+                hass,
+                platform_domain,
+                DOMAIN,
+                {"namespace": namespace, "matrix_name": matrix_name, "matrix": matrix},
+                config,
+            )
         )
-    )
 
     # setup the service calls
     platform = entity_platform.current_platform.get()
